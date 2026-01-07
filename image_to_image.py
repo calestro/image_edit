@@ -9,9 +9,9 @@ from segment_anything import sam_model_registry, SamPredictor
 from diffusers.utils import load_image
 
 
-MODEL_PATH = "reality.safetensors"
-SAM_CHECKPOINT = "sam_vit_h_4b8939.pth"
-MASTER_LORA = "master.safetensors"
+MODEL_PATH = "../reality.safetensors"
+SAM_CHECKPOINT = "../sam_vit_h_4b8939.pth"
+MASTER_LORA = "../master.safetensors"
 CONTROLNET_MODEL = "diffusers/controlnet-canny-sdxl-1.0" 
 
 class AIAssistant:
