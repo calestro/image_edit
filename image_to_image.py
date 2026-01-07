@@ -7,11 +7,12 @@ from PIL import Image
 from diffusers import StableDiffusionXLControlNetInpaintPipeline, ControlNetModel, DPMSolverMultistepScheduler
 from segment_anything import sam_model_registry, SamPredictor
 from diffusers.utils import load_image
-
-
-MODEL_PATH = "../reality.safetensors"
-SAM_CHECKPOINT = "../sam_vit_h_4b8939.pth"
-MASTER_LORA = "../master.safetensors"
+import gc
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128,expandable_segments:True"
+MODEL_PATH = "./reality.safetensors"
+SAM_CHECKPOINT = "./sam_vit_h_4b8939.pth"
+MASTER_LORA = "./master.safetensors"
+LORA_SKIN = "./lora_skin.safetensors"
 CONTROLNET_MODEL = "diffusers/controlnet-canny-sdxl-1.0" 
 
 class AIAssistant:
@@ -24,15 +25,21 @@ class AIAssistant:
         self.controlnet = ControlNetModel.from_pretrained(
             CONTROLNET_MODEL,
             torch_dtype=torch.float16,
-            use_safetensors=True
+            use_safetensors=True,
+            cache_dir="./models",
+        
+            low_cpu_mem_usage=True
         ).to(self.device)
-
+        gc.collect()
+        torch.cuda.empty_cache()
         print("---Carregando SDXL Inpaint com ControlNet ---")
         self.pipe = StableDiffusionXLControlNetInpaintPipeline.from_single_file(
             MODEL_PATH,
             controlnet=self.controlnet,
             torch_dtype=torch.float16,
-            use_safetensors=True
+            use_safetensors=True,
+        
+            low_cpu_mem_usage=True
         ).to(self.device)
 
         self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(
@@ -100,8 +107,8 @@ class AIAssistant:
             print("\n" + "═"*40)
             print("  (1) Edição Controlada (SAM + ControlNet)\n  (2) Sair")
             print("═"*40)
-            #####VOU ADICIONAR MAIS MODOS
             modo = 1
+            input("start")
             if modo == "2": break
 
             img_path = input("Caminho da imagem: ")
@@ -109,7 +116,7 @@ class AIAssistant:
                 print("Arquivo não encontrado.")
                 continue
 
-            prompt = input("Prompt (ex: blue shorts, denim texture): ")
+            prompt = input("Prompt: ")
             user_neg = input("Negativo extra: ")
             neg = f"deformed, bad anatomy, missing limbs, blur, {user_neg}"
 
