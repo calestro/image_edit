@@ -2,39 +2,50 @@ from PIL import Image
 import datetime
 import os
 
-def exec(self, prompt, neg, image_path):
+def exec(self):
+    
     try:
-        init_img = Image.open(image_path).convert("RGB").resize((1024, 1024))                        
-        
-        # --- NOVO: Configuração da Imagem de Referência (IP-Adapter) ---
-        ip_image = None
-        print("\n--- Configuração do IP-Adapter (Cópia de Estilo/Pele) ---")
-        ref_path = input("Caminho da imagem de REFERÊNCIA (Deixe vazio para usar a própria imagem original): ")
-        
-        if ref_path.strip() == "":
-            print("Usando a própria imagem original como referência (preserva identidade/pele).")
-            ip_image = init_img
-        elif os.path.exists(ref_path):
-            ip_image = Image.open(ref_path).convert("RGB").resize((1024, 1024))
-            print(f"Referência carregada: {ref_path}")
-        else:
-            print("Caminho inválido. IP-Adapter será DESATIVADO nesta geração.")
-            ip_image = None
-        # ---------------------------------------------------------------
+        while(True):  
+            nome_img = input("Nome do arquivo em ./assets/ (ex: g.jpg): ")
+            img_path = f"./assets/{nome_img}"
+            if not os.path.exists(img_path):
+                print(f"Arquivo não encontrado: {img_path}")
+           
+                
+            prompt = input("Prompt: ")
+            user_neg = input("Negativo extra: ")
+            neg = f"deformed, bad anatomy, missing limbs, blur, {user_neg}"
+            init_img = Image.open(img_path).convert("RGB").resize((1024, 1024))                        
 
-        while(True):    
+            # --- NOVO: Configuração da Imagem de Referência (IP-Adapter) ---
+            ip_image = None
+            print("\n--- Configuração do IP-Adapter (Cópia de Estilo/Pele) ---")
+            ref_path = input("Caminho da imagem de REFERÊNCIA (Deixe vazio para usar a própria imagem original): ")
+
+            if ref_path.strip() == "":
+                print("Usando a própria imagem original como referência (preserva identidade/pele).")
+                ip_image = init_img
+            elif os.path.exists(ref_path):
+                ip_image = Image.open(ref_path).convert("RGB").resize((1024, 1024))
+                print(f"Referência carregada: {ref_path}")
+            else:
+                print("Caminho inválido. IP-Adapter será DESATIVADO nesta geração.")
+                ip_image = None
+            # ---------------------------------------------------------------
+
+
             print("\n[INFO] Clique na área que deseja mudar.")
             points = self.get_mouse_clicks(init_img)
             if not points: exit
-       
+
             print("Gerando Máscara...")
             mask_img = self.generate_mask(init_img, points)
             mask_img.save("mask.png")
 
             input_mask = input("(1) Refazer Mascara | (Enter) Continuar: ")
             if(input_mask == "1"):
-                 continue
-
+                continue
+            
             print("Criando controles (Pose + Depth)...")
             pose_img = self.prepare_pose_image(init_img)
             
@@ -65,9 +76,15 @@ def exec(self, prompt, neg, image_path):
                 input_ip_scale = input("Força do IP-Adapter (0.0 - 1.0) [Padrão 0.6]: ")
                 try: ip_scale = float(input_ip_scale)
                 except: ip_scale = 0.6
+                
+                try: startGuidance = float( input("Valor da Guia de Profundidade Start [Padrão 0.6]: "))
+                except: startGuidance = 0.6
 
-                control_guidance_end_list = [1.0, 0.4] # Depth termina cedo para dar liberdade
-                control_scales_list = [1.0, 0.8]
+                try: endGuidance = float(input("Valor da Guia de Profundidade END [Padrão 0.3]: "))
+                except: endGuidance = 0.3
+
+                control_guidance_end_list = [1.0, endGuidance] 
+                control_scales_list = [1.0, startGuidance]
             
                 print(f"Editando... (Strength: {strength} | IP-Adapter: {ip_scale})")
                 
@@ -86,7 +103,7 @@ def exec(self, prompt, neg, image_path):
                  num_inference_steps=30,
                  guidance_scale=controlnet_GUIDE,
                  strength=strength,
-                 ip_adapter_image=ip_image # Passando a referência aqui
+                 ip_adapter_image=ip_image 
                 ).images[0]
                 
                 # O match_color_tone antigo (seamlessClone) pode atrapalhar o IP-Adapter,
