@@ -11,77 +11,46 @@ import gc
 import Routines
 import image_to_image as m
 from controlnet_aux import OpenposeDetector 
-from transformers import pipeline 
+from transformers import pipeline
+from diffusers import AutoencoderKL 
 
 CONTROLNET_MODEL = "xinsir/controlnet-openpose-sdxl-1.0"
+
 
 class AIAssistant:
     def __init__(self):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.load_models()
-        
+
+
     def match_color_tone(self, target_img, source_img, mask_img):
-        """
-        CORRIGIDO: Ajuste de Cor Preservando a Iluminação (Luminosity Preservation)
-        Transfere a cor (A, B) da pele original, mas mantém a iluminação (L) criada pela IA.
-        """
-        print(">> Aplicando Correção de Cor (Color Only)...")
-        
-        # 1. Converter PIL -> Numpy -> LAB (Float32 para precisão)
-        source_lab = cv2.cvtColor(np.array(source_img), cv2.COLOR_RGB2LAB).astype("float32")
-        target_lab = cv2.cvtColor(np.array(target_img), cv2.COLOR_RGB2LAB).astype("float32")
-        
-        # 2. Configurar Máscaras
-        mask = np.array(mask_img.resize(target_img.size).convert("L"))
-        mask_binary = mask > 128  # Área gerada pela IA
-        mask_inverted = mask <= 128 # Área original (Pele real)
-        
-        # Verificação de segurança
-        if np.sum(mask_binary) == 0 or np.sum(mask_inverted) == 0:
-            print("Mascara inválida ou vazia. Ignorando color match.")
-            return target_img
+   
+        print(">> Aplicando Seamless Clone (Mistura de Iluminação)...")
 
-        # 3. Calcular Médias
-        # src_mean retorna array shape (3, 1) -> [L_mean, A_mean, B_mean]
-        src_mean, _ = cv2.meanStdDev(source_lab, mask=mask_inverted.astype(np.uint8))
-        tar_mean, _ = cv2.meanStdDev(target_lab, mask=mask.astype(np.uint8))
+        try:  
+            src = cv2.cvtColor(np.array(target_img), cv2.COLOR_RGB2BGR) 
+            dst = cv2.cvtColor(np.array(source_img), cv2.COLOR_RGB2BGR)
 
-        # 4. Aplicar a Correção
-        # Canal 0 = L (Luminosidade/Luz) -> NÃO MEXEMOS (ou mexemos muito pouco)
-        # Canal 1 = A (Verde-Vermelho) -> Corrigimos para bater a cor
-        # Canal 2 = B (Azul-Amarelo) -> Corrigimos para bater a cor
-        
-        # Separamos os canais para facilitar
-        l, a, b = cv2.split(target_lab)
+            mask = np.array(mask_img.resize(target_img.size).convert("L"))
+            _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
 
-        # Calculamos a diferença apenas nas cores
-        diff_a = src_mean[1][0] - tar_mean[1][0]
-        diff_b = src_mean[2][0] - tar_mean[2][0]
+            coords = cv2.findNonZero(mask)
+            if coords is None:
+                print("Máscara vazia, retornando imagem gerada.")
+                return target_img
+                
+            x, y, w, h = cv2.boundingRect(coords)
+            center = (x + w // 2, y + h // 2)
 
-        # Aplicamos a diferença APENAS onde a máscara diz (na pele nova)
-        a[mask_binary] += diff_a
-        b[mask_binary] += diff_b
-        
-        # Opcional: Ajuste leve no brilho (L) se a pele nova estiver MUITO escura/clara
-        # Descomente a linha abaixo se quiser forçar um pouco o brilho original (ex: 50% de força)
-        # l[mask_binary] += (src_mean[0][0] - tar_mean[0][0]) * 0.5
+            output = cv2.seamlessClone(src, dst, mask, center, cv2.NORMAL_CLONE)
 
-        # 5. Juntar os canais de volta
-        result_lab = cv2.merge([l, a, b])
+            result = Image.fromarray(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
+            return result
 
-        # 6. Clip e Conversão Final
-        result_lab = np.clip(result_lab, 0, 255).astype("uint8")
-        result_rgb = cv2.cvtColor(result_lab, cv2.COLOR_LAB2RGB)
-        
-        # 7. Blend Final (Suavizar as bordas do recorte)
-        final_img = Image.fromarray(result_rgb)
-        final_img = Image.composite(final_img, target_img, mask_img)
-        
-        return final_img
-    
-    
-    
-    
+        except Exception as e:
+            print(f"Erro no Blending (provavelmente borda da imagem): {e}")
+            return Image.composite(target_img, source_img, mask_img)    
+            
     
     def load_models(self):
         print("--- Carregando Detectores (OpenPose + Depth) ---")
@@ -106,18 +75,21 @@ class AIAssistant:
         gc.collect()
         torch.cuda.empty_cache()
 
+        vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16)
+
         print("--- Carregando SDXL Inpaint com Multi-ControlNet ---")
-        # Passamos a LISTA de controlnets para o pipeline
+     
         self.pipe = StableDiffusionXLControlNetInpaintPipeline.from_single_file(
             m.MODEL_PATH,
             controlnet=self.controlnets, # Passando a lista aqui
             torch_dtype=torch.float16,
             use_safetensors=True,
             low_cpu_mem_usage=True,
+           
          
         ).to(self.device)
 
-        # ... o resto do scheduler, cpu offload e SAM continua igualzinho ...
+        self.pipe.vae = vae.to(self.device)
         self.pipe.scheduler = DPMSolverMultistepScheduler.from_config(self.pipe.scheduler.config, use_karras_sigmas=True)
         self.pipe.enable_model_cpu_offload()        
         print("--- Carregando SAM ---")
@@ -188,8 +160,6 @@ class AIAssistant:
     def prepare_depth_image(self, image_pil):
         print("Criando mapa de profundidade (Depth Anything)...")
         
-        # O pipeline do transformers retorna um dicionário
-        # Nós pegamos a chave "depth" que é a imagem processada
         depth_map = self.depth_estimator(image_pil)["depth"]
         
         # Garantir o tamanho correto (Bug do tensor)
@@ -222,6 +192,22 @@ class AIAssistant:
             neg = f"deformed, bad anatomy, missing limbs, blur, {user_neg}"
             
             Routines.exec(self, prompt, neg, img_path)
+    
+    def smooth_depth_map(self, depth_img, mask_img, kernel_size=61):
+
+        depth_np = np.array(depth_img)
+        mask_np = np.array(mask_img.resize(depth_img.size).convert("L"))
+        
+        blurred_depth = cv2.GaussianBlur(depth_np, (kernel_size, kernel_size), 0)
+        
+        mask_bool = mask_np > 128       
+
+        if len(depth_np.shape) == 3:
+            depth_np[mask_bool] = blurred_depth[mask_bool]
+        else:
+            depth_np[mask_bool] = blurred_depth[mask_bool]
+            
+        return Image.fromarray(depth_np)        
 
 if __name__ == "__main__":
     assistant = AIAssistant()

@@ -22,9 +22,10 @@ def exec(self,prompt,neg,image_path):
                 print("Criando esqueleto")
              
                 pose_img = self.prepare_pose_image(init_img)
-                depth_img = self.prepare_depth_image(init_img)
-    
-
+                
+                depth_img_raw = self.prepare_depth_image(init_img)
+                depth_img = self.smooth_depth_map(depth_img_raw, mask_img, kernel_size=81)
+                
                 control_images_list = [pose_img, depth_img]
                 total_width = pose_img.width + depth_img.width
                 height = pose_img.height
@@ -35,7 +36,8 @@ def exec(self,prompt,neg,image_path):
            
                 union_image.save("union.png")
                 print("Salvo debug: union.png")
-                control_scales_list = [0.7, 0.5]
+                
+              
 
                 i = 1
                 while(True):
@@ -47,31 +49,37 @@ def exec(self,prompt,neg,image_path):
                     except:
                         strength = 0.7
 
+                    
                     try:
-                        controlnet_scale = float(input("controlnet GUIA SCALE: "))
-                    except:
-                     controlnet_scale = .65    
-                    try:
-                        controlnet_GUIDE = float(input("CONTROLE DO PROMPT: "))
+                        controlnet_GUIDE = float(input("FORÇA DO PROMPT: "))
                     except:
                         controlnet_GUIDE = 7
 
 
-               
+                    try:
+                        profundidade = float(input("Profundidade: "))
+                    except:
+                        profundidade = .3    
+
+                    control_guidance_end_list = [1.0, profundidade]
+                    
+                   
+                    control_scales_list = [1.0, 0.8]
                 
-                    print(f"Editando... (Strength: {strength}, Control: {controlnet_scale})")
+                    print(f"Editando... (Strength: {strength})")
                             
                     output = self.pipe(
-                    prompt=prompt,
-                    negative_prompt=neg,
-                    image=init_img,
-                    mask_image=mask_img,
-                    control_image=control_images_list, 
-                    controlnet_conditioning_scale=control_scales_list,
-                    num_inference_steps=50,
-                    guidance_scale=controlnet_GUIDE,
-                    strength=strength
-                ).images[0]
+                     prompt=prompt,
+                     negative_prompt=neg,
+                     image=init_img,
+                     mask_image=mask_img,
+                     control_image=control_images_list, 
+                     controlnet_conditioning_scale=control_scales_list,
+                     control_guidance_end=control_guidance_end_list, 
+                     num_inference_steps=30,
+                     guidance_scale=controlnet_GUIDE,
+                     strength=strength
+                    ).images[0]
                     
             #        try:
             #            output = self.match_color_tone(output, init_img, mask_img)
