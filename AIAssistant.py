@@ -48,7 +48,6 @@ class AIAssistant:
             model_kwargs={"cache_dir": CACHE_DIR}
         )
 
-        # 3. ControlNets
         print("--- 3. Carregando ControlNets ---")
         c_pose = ControlNetModel.from_pretrained("xinsir/controlnet-openpose-sdxl-1.0", torch_dtype=torch.float16, use_safetensors=True, cache_dir=CACHE_DIR)
         c_depth = ControlNetModel.from_pretrained("diffusers/controlnet-depth-sdxl-1.0", torch_dtype=torch.float16, use_safetensors=True, cache_dir=CACHE_DIR)
@@ -60,7 +59,7 @@ class AIAssistant:
 
         # 4. Pipeline Principal (SDXL)
         print("--- 4. Carregando SDXL (Isso consome a maior parte da RAM) ---")
-        vae = AutoencoderKL.from_pretrained("madebyollin/sdxl-vae-fp16-fix", torch_dtype=torch.float16, cache_dir=CACHE_DIR)
+       
         
         self.pipe = StableDiffusionXLControlNetInpaintPipeline.from_single_file(
             m.MODEL_PATH,
@@ -72,15 +71,15 @@ class AIAssistant:
             image_encoder=image_encoder,
         ).to(self.device)
 
-        self.pipe.vae = vae.to(self.device)
+       
         
-        # Scheduler Euler é mais rápido e gasta menos VRAM que o DPM++
+       
         self.pipe.scheduler = EulerDiscreteScheduler.from_config(self.pipe.scheduler.config, use_karras_sigmas=True)
         
-        # CPU Offload: Joga o SDXL para a RAM quando não usado, liberando VRAM para o SAM depois
+     
         self.pipe.enable_model_cpu_offload()        
         
-        # 5. IP-Adapter
+  
         print("--- 5. Carregando IP-Adapter ---")
         try:
             self.pipe.load_ip_adapter(
@@ -95,7 +94,7 @@ class AIAssistant:
         except Exception as e:
             print(f"ERRO IP-Adapter: {e}")
 
-        # OBS: O SAM NÃO É CARREGADO AQUI PARA POUPAR MEMÓRIA
+       
         print("--- ✨ Sistema Pronto (Modo SAM Dinâmico) ---")
 
     def add_lora(self, filename, adapter_name):
