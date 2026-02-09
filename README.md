@@ -4,6 +4,8 @@ Um editor de imagens local poderoso impulsionado por Inteligência Artificial, c
 
 Este projeto permite edições avançadas de imagens (Inpainting / Outpainting) com altíssima precisão e controle, possibilitando trocar roupas, objetos ou fundos mantendo iluminação, perspectiva e geometria da imagem original.
 
+Pode utilizar o [Civit AI](https://civitai.com/) para buscar modelos e Loras
+
 ---
 
 ## ✨ Funcionalidades
@@ -102,14 +104,8 @@ IMPORTANTE:
 
 Abra o arquivo image_to_image.py e ajuste os caminhos:
 
-MODEL_PATH = "./seu_modelo_sdxl.safetensors"  
-SAM_CHECKPOINT = "./sam_vit_h_4b8939.pth"  
-
-Configure seus LoRAs:
-
-MASTER_LORA = "./seus_loras/master.safetensors"
-
----
+MODEL_PATH = #Coloque seu checkpoint aqui  
+SAM_CHECKPOINT = "./sam_vit_h_4b8939.pth" #[Faça o download deste pelo hugging face  ](https://huggingface.co/HCMUE-Research/SAM-vit-h/blob/main/sam_vit_h_4b8939.pth)
 
 ## 🚀 Como Usar
 
