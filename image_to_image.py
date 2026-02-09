@@ -14,7 +14,6 @@ SAM_CHECKPOINT = "./sam_vit_h_4b8939.pth"
 
 MASTER_LORA = "./master.safetensors"
 LORA_SKIN = "./lora_skin.safetensors"
-TOPLESS = "topless.safetensors"
 LORA_SKIN3 = "./lora_skin3.safetensors"
 
 if __name__ == "__main__":
