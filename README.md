@@ -51,7 +51,7 @@ O modelo SAM (ViT-H) é carregado apenas quando necessário, liberando VRAM para
 
 Clone o repositório:
 
-git clone https://github.com/seu-usuario/seu-projeto.git  
+git clone https://github.com/calestro/image_edit
 cd seu-projeto
 
 Crie um ambiente virtual (opcional, mas recomendado):
